@@ -20,7 +20,8 @@ pip install http-request-args
 
 
 <h2 id="Example">Example</h2>
-In order to use refer to the following [example](https://github.com/Quakingaspen-codehub/http-request-args/blob/master/example/test.ipynb)
+
+In order to use refer to the following [Example](https://github.com/Quakingaspen-codehub/http-request-args/blob/master/example/test.ipynb)
 
 <h2 id="">Contributors</h2>
 
