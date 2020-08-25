@@ -123,19 +123,19 @@ class StringArgumentsPrototype:
 
     req_country_code_alpha_2 = lambda field_name, **kwargs: StringArgument(
         field_name, required=True, 
-        length_range=[StringParams.admin0_code_alpha_2_len, StringParams.admin0_code_alpha_2_len], **kwargs)
+        length_range=[StringParams.admin0_code_alpha_2_len, StringParams.admin_0_code_alpha_2_len], **kwargs)
 
     opt_country_code_alpha_2 = lambda field_name, **kwargs: StringArgument(
         field_name, required=False,
-        length_range=[StringParams.admin0_code_alpha_2_len, StringParams.admin0_code_alpha_2_len], **kwargs)
+        length_range=[StringParams.admin0_code_alpha_2_len, StringParams.admin_0_code_alpha_2_len], **kwargs)
 
     req_country_code_alpha_3 = lambda field_name, **kwargs: StringArgument(
         field_name, required=True,
-        length_range=[StringParams.admin0_code_alpha_3_len, StringParams.admin0_code_alpha_3_len], **kwargs)
+        length_range=[StringParams.admin0_code_alpha_3_len, StringParams.admin_0_code_alpha_3_len], **kwargs)
 
     opt_country_code_alpha_3 = lambda field_name, **kwargs: StringArgument(
         field_name, required=False,
-        length_range=[StringParams.admin0_code_alpha_3_len, StringParams.admin0_code_alpha_3_len], **kwargs)
+        length_range=[StringParams.admin0_code_alpha_3_len, StringParams.admin_0_code_alpha_3_len], **kwargs)
 
 
 class ListArgumentsPrototype:
