@@ -9,8 +9,8 @@ class StringParams:
     tiny_str_len = 150  # [char]
     uuid_len = 36  # [char]
     mongo_db_id_len = 24  # [char]
-    admin0_code_alpha_2_len = 2  # [char]
-    admin0_code_alpha_3_len = 3  # [char]
+    admin_0_code_alpha_2_len = 2  # [char]
+    admin_0_code_alpha_3_len = 3  # [char]
 
 class LocationParams:
     longitude_range = [-180.0, 180.0]
