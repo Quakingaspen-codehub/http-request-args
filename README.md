@@ -9,7 +9,7 @@
 [Contributors](#Contributors)\
 [License](#License)
 <h2 id="Introduction">Introduction</h2>
-This library is to validate the request body and query string arguments. This library is implemented to be used with flask-restplus library.
+This library helps to validate the request body and query string arguments. And it's implemented to be used with flask-restplus library.
  
 <h2 id="Started">Getting Started</h2>
 In order to install, open the command prompt and type ✌️:
