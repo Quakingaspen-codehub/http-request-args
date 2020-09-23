@@ -7,25 +7,36 @@ from datetime import datetime, timedelta
 from flask import request
 import inspect
 
+
 class ArgumentTypeValidator:
     is_float = lambda req_type, arg_val_type: req_type is float and arg_val_type in [int, float]
 
     """ To check the argument type """
+
     @staticmethod
     def has_type(arg_val, req_type):
         arg_val_type = type(arg_val)
         FunctionArgsAssertion.assert_type(req_type)
-        return True if (arg_val_type is req_type) or ArgumentTypeValidator.is_float(req_type, arg_val_type)\
-                    else False
+        return True if (arg_val_type is req_type) or ArgumentTypeValidator.is_float(req_type, arg_val_type) \
+            else False
 
 
 class IterableArgumentValidator:
     """ This class has some useful function for Iterable arguments """
+
     @staticmethod
     def in_collection(arg_val, req_collection):
         """ Check if an element is inside a collection """
         FunctionArgsAssertion.assert_iterable(req_collection)
         return True if arg_val in req_collection else False
+
+    @staticmethod
+    def in_collection_for_list_argument(arg_val, req_collection):
+        """ Check if an element is inside a collection """
+        FunctionArgsAssertion.assert_iterable(req_collection)
+        arg_status = [True for arg in arg_val if arg in req_collection]
+
+        return True if False not in arg_status else False
 
     @staticmethod
     def has_length(arg_val, req_length_range):
@@ -47,12 +58,33 @@ class Argument(metaclass=ABCMeta):
         self.name = name
         self.required = required
         self.arg_type = arg_type
-        self.functions_list = None
+        self.functions_list_arg = None
         self.invalid = False
         self.validation_report = {self.name: ''}
         self.help_report = {self.name: ''}
-        self.length_range = None
-        self.req_options = None
+        self.length_range_arg = None
+        self.req_options_arg = None
+
+    @property
+    def functions_list(self):
+        try:
+            return self.functions_list_arg()
+        except:
+            return self.functions_list_arg
+
+    @property
+    def length_range(self):
+        try:
+            return self.length_range_arg()
+        except:
+            return self.length_range_arg
+
+    @property
+    def req_options(self):
+        try:
+            return self.req_options_arg()
+        except:
+            return self.req_options_arg
 
     def update_name(self, name):
         self.validation_report[name] = self.validation_report[self.name]
@@ -64,7 +96,7 @@ class Argument(metaclass=ABCMeta):
 
     def update_validation_report(self, new_info):
         self.set_invalid_arg()
-        self.validation_report[self.name]+= f'{new_info}\n'
+        self.validation_report[self.name] += f'{new_info}\n'
 
     @abstractmethod
     def assert_arg(self, args_dict):
@@ -90,7 +122,8 @@ class Argument(metaclass=ABCMeta):
         arg_available = IterableArgumentValidator.in_collection(self.name, args_dict)
 
         if self.required and \
-                (not arg_available or (arg_available and type(args_dict[self.name]) is list and len(args_dict[self.name]) == 0)):
+                (not arg_available or (
+                        arg_available and type(args_dict[self.name]) is list and len(args_dict[self.name]) == 0)):
             self.update_validation_report('missing')
 
         return arg_available
@@ -99,7 +132,7 @@ class Argument(metaclass=ABCMeta):
         """ Check the argument type """
         type_status = ArgumentTypeValidator.has_type(arg_val, self.arg_type)
         type_status = type_status or (not self.required and arg_val is None)
-        
+
         if not type_status:
             current_type = type(arg_val)
             self.update_validation_report('data type is {} but it should be {}'.format(
@@ -109,12 +142,19 @@ class Argument(metaclass=ABCMeta):
 
     def assert_req_options(self, arg_val):
         """ Check if the argument value belongs to the required options """
-        if type(self) not in [NumberArgument, StringArgument]:
-            raise Exception('Valid only for NumberArgument and StringArgument types')
+        if type(self) not in [NumberArgument, StringArgument, ListArgument]:
+            raise Exception('Valid only for NumberArgument, StringArgument, and ListArgument types')
+
+        if type(self) in [ListArgument]:
+            if self.req_options and not IterableArgumentValidator.in_collection_for_list_argument(arg_val,
+                                                                                                  self.req_options):
+                self.update_validation_report(
+                    'should be one of the following options {} but the passed value is {}'.format(
+                        self.req_options, arg_val))
 
         if self.req_options and not IterableArgumentValidator.in_collection(arg_val, self.req_options):
             self.update_validation_report('should be one of the following options {} but the passed value is {}'.format(
-                    self.req_options, arg_val))
+                self.req_options, arg_val))
             return False
         return True
 
@@ -125,7 +165,7 @@ class Argument(metaclass=ABCMeta):
 
         if self.length_range and not NumberArgument.in_range(len(arg_val), self.length_range):
             self.update_validation_report('length should be in the range {} but the current length is {}'.format(
-                    self.length_range, len(arg_val)))
+                self.length_range, len(arg_val)))
             return False
         return True
 
@@ -153,7 +193,6 @@ class Argument(metaclass=ABCMeta):
         else:
             msg = 'This argument is optional \n'
 
-
         # Iterate over all class attributes
         for attr in help_report_template:
             attr_value = eval(f'self.{attr}')
@@ -165,30 +204,31 @@ class Argument(metaclass=ABCMeta):
                 if attr == 'functions_list':
                     # Update attribute value to have list of functions names
                     attr_value = self.functions_list_as_str()
-                 
-                msg+= help_report_template[attr].format(str(attr_value))
-        
-        # Add attributes values to the report 
-        self.help_report[self.name]+=  msg
 
+                msg += help_report_template[attr].format(str(attr_value))
+
+        # Add attributes values to the report 
+        self.help_report[self.name] += msg
 
     def functions_list_as_str(self):
         func_names = ''
         for func in self.functions_list:
-            func_names+= f'{func.__name__}, '
+            func_names += f'{func.__name__}, '
 
         return f'[{func_names[:-2]}]'
 
-
     def extract_attributes(self):
-        attributes = inspect.getmembers(self, lambda a:not(inspect.isroutine(a)))
-        attributes = [attr[0] for attr in attributes if not(attr[0].startswith('_'))]
+        attributes = inspect.getmembers(self, lambda a: not (inspect.isroutine(a)))
+        attributes = [attr[0] for attr in attributes if not (attr[0].startswith('_'))]
         irrelevent_attributes = ['name', 'required', 'arg_type', 'help_report', 'req_options',
-            'file_extensions', 'email_regex_pattern', 'password_regex_pattern', 'phone_regex_pattern', 'length_range',
-            'date_regex_pattern', 'date_format', 'invalid', 'missing', 'validation_report', 'functions_list']
+                                 'file_extensions', 'email_regex_pattern', 'password_regex_pattern',
+                                 'phone_regex_pattern', 'length_range',
+                                 'date_regex_pattern', 'date_format', 'invalid', 'missing', 'validation_report',
+                                 'functions_list_arg', 'functions_list', 'req_range_arg', 'comparison_operator_arg',
+                                 'req_options_arg', 'date_comparison_operator_arg', 'date_range_arg', 'length_range_arg'
+                                 ]
 
         return [attr for attr in attributes if attr not in irrelevent_attributes]
-
 
     def __repr__(self):
         if self.invalid:
@@ -199,14 +239,29 @@ class Argument(metaclass=ABCMeta):
 
 class NumberArgument(Argument):
     """ A class to represent the number argument which could be int or float """
+
     def __init__(self, name, required, arg_type, req_range=None, req_options=None,
                  comparison_operator=None, functions_list=None):
         FunctionArgsAssertion.assert_number_type(arg_type)
         super().__init__(name, required, arg_type)
-        self.req_range = req_range
-        self.req_options = req_options
-        self.comparison_operator = comparison_operator
-        self.functions_list = functions_list
+        self.req_range_arg = req_range
+        self.req_options_arg = req_options
+        self.comparison_operator_arg = comparison_operator
+        self.functions_list_arg = functions_list
+
+    @property
+    def req_range(self):
+        try:
+            return self.req_range_arg()
+        except:
+            return self.req_range_arg
+
+    @property
+    def comparison_operator(self):
+        try:
+            return self.comparison_operator_arg()
+        except:
+            return self.comparison_operator_arg
 
     def arg_help(self):
         help_report_template = {
@@ -223,11 +278,10 @@ class NumberArgument(Argument):
             # If attribute has value (not None)
             if attr_value:
                 # Add attribute value to the report  
-                msg+= help_report_template[attr].format(str(attr_value))
-        
-        self.help_report[self.name]+=  msg
+                msg += help_report_template[attr].format(str(attr_value))
 
-                
+        self.help_report[self.name] += msg
+
     def assert_arg(self, args_dict):
         arg_val = super().assert_arg(args_dict)
 
@@ -263,18 +317,19 @@ class NumberArgument(Argument):
 
 
 class StringArgument(Argument):
-    
-    def __init__(self, name, required, is_email=False, 
-                email_regex_pattern ='(?:[a-z0-9!#$%&\'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&\'*+/=?^_`{|}~-]+)*|"(?:[' \
+
+    def __init__(self, name, required, is_email=False,
+                 email_regex_pattern='(?:[a-z0-9!#$%&\'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&\'*+/=?^_`{|}~-]+)*|"(?:[' \
                                      '\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@(?:(?:[' \
                                      'a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:(2(5[0-5]|[0-4][' \
                                      '0-9])|1[0-9][0-9]|[1-9]?[0-9]))\.){3}(?:(2(5[0-5]|[0-4][0-9])|1[0-9][0-9]|[1-9]?[0-9])|[' \
                                      'a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[' \
                                      '\x01-\x09\x0b\x0c\x0e-\x7f])+)\])',
-                 is_date=False, date_regex_pattern='^\d{4}-\d{1,2}-\d{1,2}$', date_format='%Y-%m-%d', 
-                 is_password=False, password_regex_pattern='^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[~#$*])[A-Za-z\d~#$*]{8,}$', 
+                 is_date=False, date_regex_pattern='^\d{4}-\d{1,2}-\d{1,2}$', date_format='%Y-%m-%d',
+                 is_password=False,
+                 password_regex_pattern='^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[~#$*])[A-Za-z\d~#$*]{8,}$',
                  is_phone_number=False, phone_regex_pattern='^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$',
-                 req_options=None, length_range=None, regex_pattern=None, in_past=False, date_comparison_operator=None, 
+                 req_options=None, length_range=None, regex_pattern=None, in_past=False, date_comparison_operator=None,
                  date_range=None, functions_list=None):
 
         if (is_email + is_date + is_password + is_phone_number) > 1:
@@ -282,22 +337,43 @@ class StringArgument(Argument):
 
         super().__init__(name, required, str)
 
-        self.req_options = req_options
-        self.length_range = length_range
+        self.req_options_arg = req_options
+        self.length_range_arg = length_range
         self.is_email = is_email
         self.email_regex_pattern = email_regex_pattern
         self.is_password = is_password
         self.password_regex_pattern = password_regex_pattern
-        self.regex_pattern = regex_pattern
+        self.regex_pattern_arg = regex_pattern
         self.is_phone_number = is_phone_number
         self.phone_regex_pattern = phone_regex_pattern
-        self.functions_list = functions_list
+        self.functions_list_arg = functions_list
         self.is_date = is_date
         self.date_regex_pattern = date_regex_pattern
         self.date_format = date_format
-        self.date_comparison_operator = date_comparison_operator
-        self.date_range = date_range
+        self.date_comparison_operator_arg = date_comparison_operator
+        self.date_range_arg = date_range
         self.in_past = in_past
+
+    @property
+    def regex_pattern(self):
+        try:
+            return self.regex_pattern_arg()
+        except:
+            return self.regex_pattern_arg
+
+    @property
+    def date_comparison_operator(self):
+        try:
+            return self.date_comparison_operator_arg()
+        except:
+            return self.date_comparison_operator_arg
+
+    @property
+    def date_range(self):
+        try:
+            return self.date_range_arg()
+        except:
+            return self.date_range_arg
 
     def arg_help(self):
         help_report_template = {
@@ -321,17 +397,16 @@ class StringArgument(Argument):
             if attr_value:
                 # If the attribute in the following list, no need to add it's value to the report
                 if attr in ['is_password', 'is_email', 'is_date']:
-                    self.help_report[self.name]+= help_report_template[attr]
+                    self.help_report[self.name] += help_report_template[attr]
                     continue
 
                 if attr == 'in_past':
                     # Update attribute value to have the current date
                     attr_value = str((datetime.now() + timedelta(days=1)).date())
-                
-                # Add attribute value to the report
-                msg+= help_report_template[attr].format(str(attr_value))
-        self.help_report[self.name]+= msg
 
+                # Add attribute value to the report
+                msg += help_report_template[attr].format(str(attr_value))
+        self.help_report[self.name] += msg
 
     def assert_arg(self, args_dict):
         arg_val = super().assert_arg(args_dict)
@@ -403,7 +478,7 @@ class StringArgument(Argument):
             'special character from ~#$*': '[~#$*]'
         }
         report = ''
-        
+
         if len(password) < min_len:
             report = report + f'The password should be at least {min_len} charachters long.\n'
         if re.search(white_space, password) is not None:
@@ -424,7 +499,6 @@ class StringArgument(Argument):
     def is_phone_func(self, arg_val):
         """ To check if argument match the phone number pattern """
         return StringArgument.match_pattern(arg_val, self.phone_regex_pattern)
-
 
     def assert_date(self, arg_val):
         """ To check if argument match the date pattern """
@@ -448,12 +522,12 @@ class StringArgument(Argument):
         if self.date_comparison_operator:
             # Convert operand to datetime
             if not isinstance(self.date_comparison_operator.operand, datetime):
-                self.date_comparison_operator.operand =\
-                    datetime.strptime(self.date_comparison_operator.operand, 
-                        self.date_format)
+                self.date_comparison_operator.operand = \
+                    datetime.strptime(self.date_comparison_operator.operand,
+                                      self.date_format)
 
             if not self.date_comparison_operator.compare(arg_val):
-                self.update_validation_report('should be {} {} but the passed value is : {}'.format( 
+                self.update_validation_report('should be {} {} but the passed value is : {}'.format(
                     self.date_comparison_operator.operator_name.replace('_', ' '),
                     self.date_comparison_operator.operand, arg_val))
                 return False
@@ -518,11 +592,12 @@ class StringArgument(Argument):
 
 
 class ListArgument(Argument):
-    def __init__(self, name, required, arg_obj, length_range=None, all_items_unique=False):
+    def __init__(self, name, required, arg_obj, length_range=None, all_items_unique=False, req_options=None):
         super().__init__(name, required, list)
-        self.length_range = length_range
+        self.length_range_arg = length_range
         self.arg_obj = arg_obj
         self.all_items_unique = all_items_unique
+        self.req_options_arg = req_options
 
     def arg_help(self):
         super().arg_help()
@@ -534,12 +609,11 @@ class ListArgument(Argument):
         }
 
         if self.all_items_unique:
-            self.help_report[self.name]['conditions'] += 'This argument items should be unique \n'    
+            self.help_report[self.name]['conditions'] += 'This argument items should be unique \n'
 
-        # Add list argument conditions to the report
+            # Add list argument conditions to the report
         self.arg_obj.arg_help()
         self.help_report[self.name]['list_item'] = self.arg_obj.help_report[self.arg_obj.name]
-
 
     def assert_arg(self, args_dict):
         arg_val = super().assert_arg(args_dict)
@@ -547,14 +621,16 @@ class ListArgument(Argument):
         if arg_val is None or not self.assert_length(arg_val):
             return
 
+        self.assert_req_options(arg_val)
         self.assert_items_unique(arg_val)
         self.assert_items_val(arg_val)
 
     def assert_items_unique(self, arg_val):
         """ To check if all items in the list are unique """
         if self.all_items_unique and len(arg_val) != len(set(arg_val)):
-            self.update_validation_report('All the items inside the list {} should be unique but some items are repeated'.format(
-                self.name))
+            self.update_validation_report(
+                'All the items inside the list {} should be unique but some items are repeated'.format(
+                    self.name))
             return False
         return True
 
@@ -569,19 +645,25 @@ class ListArgument(Argument):
 
             if arg_obj.invalid:
                 self.update_validation_report(arg_obj.validation_report)
-        
 
 
 class FileArgument(Argument):
     def __init__(self, name, required, file_size=None,
-                 file_extensions = ['.jpg', '.jpeg', '.png', '.tiff', '.tif',      # Image
-                                    '.gif', '.mp4', '.17',                         # Video
-                                    '.mp3',                                        # Audio
-                                    '.pdf', '.txt', '.docx', '.xlsx', '.csv']      # Documents
-                ):
+                 file_extensions=['.jpg', '.jpeg', '.png', '.tiff', '.tif',  # Image
+                                  '.gif', '.mp4', '.17',  # Video
+                                  '.mp3',  # Audio
+                                  '.pdf', '.txt', '.docx', '.xlsx', '.csv']  # Documents
+                 ):
         super().__init__(name, required, dict)
         self.file_size = file_size
-        self.file_extensions = file_extensions
+        self.file_extensions_arg = file_extensions
+
+    @property
+    def file_extensions(self):
+        try:
+            return self.file_extensions_arg()
+        except:
+            return self.file_extensions_arg
 
     def arg_help(self):
         self.reset_arg()
@@ -592,18 +674,19 @@ class FileArgument(Argument):
 
         else:
             msg = 'File is optional \n'
-        
-        msg+= f'File extension should be one of the following extensions {self.file_extensions}'
-        self.help_report['file']['file_conditions'] =  msg
+
+        msg += f'File extension should be one of the following extensions {self.file_extensions}'
+        self.help_report['file']['file_conditions'] = msg
 
         if self.file_size:
-            update_file_size_report = lambda report: report + ' MB' if (report.endswith(']') or str.isdigit(report[-1])) else report
+            update_file_size_report = lambda report: report + ' MB' if (
+                    report.endswith(']') or str.isdigit(report[-1])) else report
             self.file_size.arg_help()
 
             report_details = self.file_size.help_report[self.file_size.name].split(' \n')
             file_size_report = {self.file_size.name: ' \n'.join([
-                update_file_size_report(rep) for rep in report_details  if rep
-                ])
+                update_file_size_report(rep) for rep in report_details if rep
+            ])
             }
             self.help_report['file'].update(file_size_report)
 
@@ -612,7 +695,7 @@ class FileArgument(Argument):
         if not self.assert_existence(request.files):
             return
 
-        file_size = request.content_length / 1024 / 1024 # MB
+        file_size = request.content_length / 1024 / 1024  # MB
         arg_val = {'file_name': request.files['file'].filename, 'file_size': file_size}
 
         self.assert_file_name(arg_val)
@@ -630,8 +713,9 @@ class FileArgument(Argument):
         """To check if file name match the required extensions"""
         if not self.has_valid_extension(arg_val['file_name']):
             _, ext = os.path.splitext(arg_val['file_name'])
-            self.update_validation_report('the extension should be one of the following extensions {}  but the passed value is {} '.format(
-                self.file_extensions, ext))
+            self.update_validation_report(
+                'the extension should be one of the following extensions {}  but the passed value is {} '.format(
+                    self.file_extensions, ext))
             return False
 
         return True
@@ -640,7 +724,6 @@ class FileArgument(Argument):
         _, ext = os.path.splitext(arg_val)
         return ext.lower() in self.file_extensions
 
-
     def assert_file_size(self, arg_val):
         if self.file_size:
             file_size = deepcopy(self.file_size)
@@ -648,13 +731,14 @@ class FileArgument(Argument):
             file_size.assert_arg(arg_val)
 
             if file_size.invalid:
-                update_file_size_report = lambda report: report + ' MB' if (report.endswith(']') or str.isdigit(report[-1])) else report
+                update_file_size_report = lambda report: report + ' MB' if (
+                        report.endswith(']') or str.isdigit(report[-1])) else report
                 updated_report = file_size.validation_report[file_size.name].replace('\n', '')
                 report_details = updated_report.split()
 
                 file_size.validation_report[file_size.name] = ' '.join([
-                    update_file_size_report(rep) for rep in report_details  if rep
-                    ]) + ' \n'
+                    update_file_size_report(rep) for rep in report_details if rep
+                ]) + ' \n'
 
                 self.update_validation_report(file_size.validation_report)
                 return False
@@ -664,17 +748,17 @@ class FileArgument(Argument):
 
 class JsonArgument(Argument):
     """ A class to represent the number argument which could be int or float """
+
     def __init__(self, name, required, fields=None):
         super().__init__(name, required, dict)
         self.fields = fields
 
     def arg_help(self):
         super().arg_help()
-        
-        if self.fields:
-            self.help_report[self.name]+=  f'This argument should have the following fields {self.fields} \n'
 
-                
+        if self.fields:
+            self.help_report[self.name] += f'This argument should have the following fields {self.fields} \n'
+
     def assert_arg(self, args_dict):
         arg_val = super().assert_arg(args_dict)
 
