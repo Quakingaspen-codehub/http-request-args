@@ -778,3 +778,39 @@ class JsonArgument(Argument):
                 return False
 
         return True
+
+
+class AdvancedJsonArgument(Argument):
+
+    def __init__(self, name, required, arguments, fields=None):
+        super().__init__(name, required, dict)
+        self.fields = fields
+        self.arguments = arguments
+
+    def assert_arg(self, args_dict):
+        arg_val = super().assert_arg(args_dict)
+
+        if arg_val is None:
+            return
+
+        self.assert_fields(arg_val)
+        for argument in self.arguments:
+            arg_obj = deepcopy(argument)
+            arg_obj.update_name(argument.name)
+
+            arg_obj.assert_arg(args_dict[self.name])
+
+            if arg_obj.invalid:
+                self.update_validation_report(arg_obj.validation_report)
+
+    def assert_fields(self, arg_val):
+        if self.fields:
+            recieved_fields = list(arg_val.keys())
+            recieved_fields.sort()
+            self.fields.sort()
+
+            if self.fields != recieved_fields:
+                self.update_validation_report(f'fields should be {self.fields} but the passed are {recieved_fields}')
+                return False
+
+        return True
