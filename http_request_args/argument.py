@@ -426,7 +426,7 @@ class StringArgument(Argument):
 
     def assert_email(self, arg_val):
         """ To check if argument match the email pattern """
-        if self.is_email and not self.is_email_func(arg_val):
+        if self.is_email and not self.is_email_func(arg_val.lower()):
             self.update_validation_report('should be a valid email address')
             return False
         return True
