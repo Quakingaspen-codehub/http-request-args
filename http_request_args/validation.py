@@ -90,8 +90,8 @@ class RequestArgsValidator:
                 req_validator.validate()
                 
                 if req_validator.invalid:
-                    request.qs_args = request.json
-                    request.body_args = request.args
+                    request.qs_args = request.args
+                    request.body_args = request.json
 
                     return request_args_validation_error, req_validator.validation_report
                 

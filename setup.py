@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="http-request-args",
-    version="0.1.29",
+    version="0.1.30",
     author="Quaking Aspen",
     author_email="info@quakingaspen.net",
     license='MIT',
